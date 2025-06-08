@@ -1,26 +1,23 @@
 const express = require('express');
 const { ApolloServer } = require('apollo-server-express');
 const mongoose = require('mongoose');
+const { verifyToken } = require('./utils/auth');
 require('dotenv').config();
+
+// Import des types GraphQL et resolvers
+const typeDefs = require('./graphql/schema');
+const resolvers = require('./graphql/resolvers');
 
 const startServer = async () => {
   const app = express();
-
-  // Pour le moment, on met un schéma vide temporaire
-  const typeDefs = `
-    type Query {
-      _empty: String
-    }
-  `;
-  const resolvers = {
-    Query: {
-      _empty: () => 'API prête',
-    },
-  };
-
   const server = new ApolloServer({
     typeDefs,
     resolvers,
+    context: ({ req }) => {
+    const token = req.headers.authorization || '';
+    const decoded = verifyToken(token.replace('Bearer ', ''));
+    return { user: decoded };
+  }
   });
 
   await server.start();

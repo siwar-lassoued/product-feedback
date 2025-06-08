@@ -1,86 +1,133 @@
-const User = require('../models/user'); // Import du modèle User
+const User = require('../models/user'); 
 const Product = require('../models/product');
 const Feedback = require('../models/feedback');
+const { generateToken } = require('../utils/auth');
+
 
 
 module.exports = {
   Query: {
-    feedbacks: async (_, { productId }) => {
-      return await Feedback.find({ product: productId }).populate('user').populate('product');
-    },
-    products: async () => {
-      return await Product.find();
-    },
-    product: async (_, { id }) => await Product.findById(id),
-    users: async () => {
-      return await User.find();
-    },
-    feedbackByUser: async (_, { userId }) =>
-      await Feedback.find({ user: userId }).populate('user').populate('product'),
-
-    allFeedbacks: async () =>
-      await Feedback.find().populate('user').populate('product'),
-    averageRating: async (_, { productId }) => {
-      const feedbacks = await Feedback.find({ product: productId });
-      if (feedbacks.length === 0) return 0;
-      const total = feedbacks.reduce((sum, f) => sum + f.rating, 0);
-      return total / feedbacks.length;
-    }
+  me: async (_, __, context) => {
+    if (!context.user) throw new Error("Non authentifié");
+    return await User.findById(context.user.id);
   },
+
+  user: async (_, { id }, context) => {
+    if (!context.user) throw new Error("Non authentifié");
+    return await User.findById(id);
+  },
+
+  users: async (_, __, context) => {
+    if (!context.user) throw new Error("Non authentifié");
+    return await User.find();
+  },
+
+  products: async (_, __, context) => {
+    if (!context.user) throw new Error("Non authentifié");
+    return await Product.find();
+  },
+
+  product: async (_, { id }, context) => {
+    if (!context.user) throw new Error("Non authentifié");
+    return await Product.findById(id);
+  },
+
+  feedbacks: async (_, { productId }, context) => {
+    if (!context.user) throw new Error("Non authentifié");
+    return await Feedback.find({ product: productId }).populate('user').populate('product');
+  },
+
+  feedbackByUser: async (_, { userId }, context) => {
+    if (!context.user) throw new Error("Non authentifié");
+    return await Feedback.find({ user: userId }).populate('user').populate('product');
+  },
+
+  allFeedbacks: async (_, __, context) => {
+    if (!context.user) throw new Error("Non authentifié");
+    return await Feedback.find().populate('user').populate('product');
+  },
+
+  averageRating: async (_, { productId }, context) => {
+    if (!context.user) throw new Error("Non authentifié");
+    const feedbacks = await Feedback.find({ product: productId });
+    if (feedbacks.length === 0) return 0;
+    const total = feedbacks.reduce((sum, f) => sum + f.rating, 0);
+    return total / feedbacks.length;
+  },
+},
+
+ 
   Mutation: {
-    createFeedback: async (_, { userId, productId, rating, comment }) => {
-  try {
+  login: async (_, { email }) => {
+    const user = await User.findOne({ email });
+    if (!user) throw new Error('Utilisateur non trouvé');
+
+    const token = generateToken(user);
+    return { token, user };
+    },
+
+  createUser: async (_, { name, email }) => {
+    const user = new User({ name, email });
+    await user.save();
+    return user;
+  },
+
+  updateUser: async (_, { id, name, email }, context) => {
+    if (!context.user) throw new Error("Non authentifié");
+    if (context.user.id !== id) throw new Error("Tu ne peux modifier que ton propre compte");
+    return await User.findByIdAndUpdate(id, { name, email }, { new: true });
+  },
+
+  deleteUser: async (_, { id }, context) => {
+    if (!context.user) throw new Error("Non authentifié");
+    if (context.user.id !== id) throw new Error("Tu ne peux supprimer que ton propre compte");
+    return await User.findByIdAndDelete(id);
+  },
+
+  createProduct: async (_, { name, description }, context) => {
+    if (!context.user) throw new Error("Non authentifié");
+    const product = new Product({ name, description });
+    await product.save();
+    return product;
+  },
+
+  updateProduct: async (_, { id, name, description }, context) => {
+    if (!context.user) throw new Error("Non authentifié");
+    return await Product.findByIdAndUpdate(id, { name, description }, { new: true });
+  },
+
+  deleteProduct: async (_, { id }, context) => {
+    if (!context.user) throw new Error("Non authentifié");
+    return await Product.findByIdAndDelete(id);
+  },
+
+  createFeedback: async (_, { productId, rating, comment }, context) => {
+    if (!context.user) throw new Error("Non authentifié");
+
     const feedback = new Feedback({
-      user: userId,
+      user: context.user.id,
       product: productId,
       rating,
       comment,
     });
 
     await feedback.save();
-
-    await feedback.populate([{ path: 'user' }, { path: 'product' }]); // ✅ Correction ici
-
+    await feedback.populate(['user', 'product']);
     return feedback;
-  } catch (error) {
-    console.error("Erreur lors de la création du feedback :", error);
-    throw new Error("Erreur lors de la création du feedback");
-  }
-},
-
-    createUser: async (_, { name, email }) => {
-      try {
-        console.log('Création d\'un utilisateur avec :', { name, email });  // Log des données reçues
-        const user = new User({ name, email });
-        console.log('Utilisateur créé, tentative de sauvegarde...');
-        await user.save();
-        console.log('Utilisateur sauvegardé avec succès');
-        return user;
-      } catch (error) {
-        console.error("Erreur lors de la création de l'utilisateur :", error);  // Log d'erreur
-        throw new Error('Erreur lors de la création de l\'utilisateur');
-      }
-    },
-    createProduct: async (_, { name, description }) => {
-  try {
-    console.log('Données reçues pour createProduct :', { name, description });
-    const product = new Product({ name, description });
-    await product.save();
-    console.log('Produit créé avec succès');
-    return product;
-  } catch (error) {
-    console.error("Erreur lors de la création du produit :", error);
-    throw new Error("Erreur lors de la création du produit");
-  }
-},
-updateProduct: async (_, { id, name, description }) =>
-      await Product.findByIdAndUpdate(id, { name, description }, { new: true }),
-
-    deleteProduct: async (_, { id }) =>
-      await Product.findByIdAndDelete(id),
-  deleteFeedback: async (_, { id }) =>
-      await Feedback.findByIdAndDelete(id),
-
-
   },
+
+  deleteFeedback: async (_, { id }, context) => {
+    if (!context.user) throw new Error("Non authentifié");
+
+    const feedback = await Feedback.findById(id);
+    if (!feedback) throw new Error("Feedback introuvable");
+
+    if (String(feedback.user) !== context.user.id) {
+      throw new Error("Tu ne peux supprimer que ton propre feedback");
+    }
+
+    return await Feedback.findByIdAndDelete(id);
+  },
+},
+
 };
