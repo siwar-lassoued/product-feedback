@@ -14,6 +14,11 @@ module.exports = {
     users: async () => {
       return await User.find();
     },
+    feedbackByUser: async (_, { userId }) =>
+      await Feedback.find({ user: userId }).populate('user').populate('product'),
+
+    allFeedbacks: async () =>
+      await Feedback.find().populate('user').populate('product'),
   },
   Mutation: {
     createFeedback: async (_, { userId, productId, rating, comment }) => {
@@ -61,7 +66,9 @@ module.exports = {
     throw new Error("Erreur lors de la création du produit");
   }
 },
+  deleteFeedback: async (_, { id }) =>
+      await Feedback.findByIdAndDelete(id),
 
-    
+
   },
 };

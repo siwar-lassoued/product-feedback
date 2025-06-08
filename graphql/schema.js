@@ -25,12 +25,15 @@ module.exports = gql`
     feedbacks(productId: ID!): [Feedback]
     products: [Product]
     users: [User]
+    feedbackByUser(userId: ID!): [Feedback]
+    allFeedbacks: [Feedback]
   }
 
  type Mutation {
   createFeedback(userId: ID!, productId: ID!, rating: Int!, comment: String): Feedback
   createUser(name: String!, email: String!): User  
   createProduct(name: String!, description: String): Product
+  deleteFeedback(id: ID!): Feedback
 
 }
 
