@@ -11,6 +11,7 @@ module.exports = {
     products: async () => {
       return await Product.find();
     },
+    product: async (_, { id }) => await Product.findById(id),
     users: async () => {
       return await User.find();
     },
@@ -19,6 +20,12 @@ module.exports = {
 
     allFeedbacks: async () =>
       await Feedback.find().populate('user').populate('product'),
+    averageRating: async (_, { productId }) => {
+      const feedbacks = await Feedback.find({ product: productId });
+      if (feedbacks.length === 0) return 0;
+      const total = feedbacks.reduce((sum, f) => sum + f.rating, 0);
+      return total / feedbacks.length;
+    }
   },
   Mutation: {
     createFeedback: async (_, { userId, productId, rating, comment }) => {
@@ -66,6 +73,11 @@ module.exports = {
     throw new Error("Erreur lors de la création du produit");
   }
 },
+updateProduct: async (_, { id, name, description }) =>
+      await Product.findByIdAndUpdate(id, { name, description }, { new: true }),
+
+    deleteProduct: async (_, { id }) =>
+      await Product.findByIdAndDelete(id),
   deleteFeedback: async (_, { id }) =>
       await Feedback.findByIdAndDelete(id),
 
